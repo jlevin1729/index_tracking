@@ -12,9 +12,9 @@ UK = 'MSCI_UK_val'
 xUK = 'MSCI_Europe_xUK_val'
 USA = 'MSCI_USA_val'
 
-UK_stocks = (torch.tensor(db.ws(ws=UK).range(address='B2:CN360')), 'UK')
+#UK_stocks = (torch.tensor(db.ws(ws=UK).range(address='B2:CN360')), 'UK')
 #xUK_stocks = (torch.tensor(db.ws(ws=xUK).range(address='B2:MJ360')), 'xUK')
-USA_stocks = (torch.tensor(db.ws(ws=USA).range(address='B2:WR360')), 'USA')
+#USA_stocks = (torch.tensor(db.ws(ws=USA).range(address='B2:WR360')), 'USA')
 
 
 def cost(reconstructed: torch.Tensor, original: torch.Tensor) -> torch.Tensor:
@@ -53,20 +53,17 @@ def reinforce(
     optimizer = torch.optim.Adam(params=network.parameters(), lr=rate)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma)
 
-    if market[1] == 'UK':
-        training_data = market[0][:day, :-2]
-    else:
-        training_data = market[0][:day, :-1]
+    training_data = market[0][:day, :-1]
     epoch_losses = []
 
     for epoch in range(num_epochs):
-        if epoch % 10000 == 0:
+        if epoch % 1000 == 0:
             print()
             print('starting epoch', epoch)
         reconstructed = network.forward(training_data)
         loss = cost(reconstructed=reconstructed, original=training_data)
         epoch_losses.append(float(loss))
-        if epoch % 10000 == 0:
+        if epoch % 1000 == 0:
             print('loss =', float(loss))
 
         optimizer.zero_grad()
@@ -78,10 +75,10 @@ def reinforce(
         decayed_rate = rate * gamma ** (1 + epoch)
         if decayed_rate > min_rate:
             scheduler.step()
-            if epoch % 10000 == 0:
+            if epoch % 1000 == 0:
                 print('new rate =', decayed_rate)
         else:
-            if epoch % 10000 == 0:
+            if epoch % 1000 == 0:
                 print('rate locked at ', min_rate)
     reconstructed = network.forward(training_data)
     loss = cost(reconstructed=reconstructed, original=training_data)

@@ -16,21 +16,23 @@ UK = 'MSCI_UK_val'
 xUK = 'MSCI_Europe_xUK_val'
 USA = 'MSCI_USA_val'
 
-UK_stocks = (torch.tensor(db.ws(ws=UK).range(address='B2:CN360')), 'UK')
+#UK_stocks = (torch.tensor(db.ws(ws=UK).range(address='B2:CN360')), 'UK')
 #xUK_np = np.array(db.ws(ws=xUK).range(address='B2:MJ360'))
 #xUK_np[:106, ]
 #xUK_stocks = (torch.tensor(db.ws(ws=xUK).range(address='B2:MJ360')), 'xUK')
-USA_stocks = (torch.tensor(db.ws(ws=USA).range(address='B2:WR360')), 'USA')
+#USA_stocks = (torch.tensor(db.ws(ws=USA).range(address='B2:WR360')), 'USA')
 
 
-def random_sparse_portfolio(market_size: int, portfolio_size: int, bounds: List[Tuple[float, float]], stocks: Optional[List[int]] = None) -> torch.tensor:
+def random_sparse_portfolio(market_size: int, portfolio_size: int, stocks: Optional[List[int]] = None) -> torch.tensor:
     market = range(market_size)
     if stocks is None:
         included = rdm.sample(market, portfolio_size)
     else:
         included = stocks
-    portfolio = torch.tensor([rdm.uniform(bounds[i][0], bounds[i][1]) if i in included else 0 for i in market])
+    #portfolio = torch.tensor([rdm.uniform(bounds[i][0], bounds[i][1]) if i in included else 0 for i in market])
+    portfolio = torch.tensor([rdm.uniform(0.002, 0.06) if i in included else 0 for i in market])
     portfolio = portfolio / sum(portfolio)
+    #print(portfolio)
     if not np.isclose(sum(portfolio), 1):
         raise RuntimeError(f'Portfolio weights sum to {sum(portfolio)}')
     return portfolio
@@ -51,13 +53,11 @@ def weight_bounds(market: torch.tensor, day: int) -> List[Tuple[float, float]]:
 def initialize_population(market_size: int,
                           portfolio_size: int,
                           pop_size: int,
-                          weight_bds: List[Tuple[float, float]],
                           stocks: Optional[List[int]] = None
                           ) -> torch.tensor:
     population_ = [random_sparse_portfolio(
         market_size=market_size,
         portfolio_size=portfolio_size,
-        bounds=weight_bds,
         stocks=stocks) for i in range(pop_size)]
     population = torch.stack(population_, 1)
     return population
@@ -70,8 +70,14 @@ def tracking_error(portfolios: torch.tensor, market: torch.tensor, day: int, sta
     else:
         market_data = market[:day, :-1]
         index_returns = market[:day, -1:]
+    #print('market_data size =', market_data.size())
+    #print('portfolios size =', portfolios.size())
+    #print('index_returns size =', index_returns.size())
     market_returns = torch.matmul(market_data, portfolios)
-    diff = (market_returns - index_returns) / index_returns
+    #print('market_returns =', market_returns)
+    #print('index_returns =', index_returns)
+    diff = (market_returns - index_returns)  # / index_returns
+    #print('diff size =', diff.size())
     #print('diff =', diff)
     if daily:
         return diff.squeeze(0)
@@ -114,6 +120,7 @@ def random_mutation(portfolios: torch.tensor, num_mutants: int, bounds: List[Tup
     weight_adjustments = torch.normal(torch.ones(stacked.size()), step_size * torch.ones(stacked.size()))
     #print('weight adjustments size =', weight_adjustments.size())
     mutants = (stacked * weight_adjustments).squeeze()
+    #mutants = torch.clip(mutants, min=0.002, max=0.06)
     return mutants / mutants.sum(0)
 
 
@@ -197,8 +204,8 @@ def genetic_algorithm(
     population = initialize_population(market_size=market_size,
                                        portfolio_size=portfolio_size,
                                        pop_size=init_pop_size,
-                                       weight_bds=bounds,
                                        stocks=stocks)
+    #print('population =', population[:, :2])
 
     print('Beginning evolution')
     while generation < num_generations and min_error > error_goal:
@@ -207,7 +214,6 @@ def genetic_algorithm(
         print()
         print('generation', generation)
         pop_tracking_errors = tracking_error(portfolios=population.float(), market=market[0], day=day)
-        # print('errors =', pop_tracking_errors)
         smallest_error_in_generation = torch.min(pop_tracking_errors)
         if smallest_error_in_generation < min_error:
             best_index = torch.argmin(pop_tracking_errors)

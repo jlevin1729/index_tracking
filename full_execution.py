@@ -15,7 +15,9 @@ UK = 'MSCI_UK_val'
 xUK = 'MSCI_Europe_xUK_val'
 USA = 'MSCI_USA_val'
 
-UK_stocks = (torch.tensor(db.ws(ws=UK).range(address='B2:CN360')), 'UK')
+UK_ = torch.tensor(db.ws(ws=UK).range(address='B2:CL360'))
+UK_index = torch.tensor(db.ws(ws=UK).range(address='CN2:CN360'))
+UK_stocks = (torch.cat([UK_, UK_index], 1), 'UK')
 #xUK_stocks = (torch.tensor(db.ws(ws=xUK).range(address='B2:MJ360')), 'xUK')
 USA_stocks = (torch.tensor(db.ws(ws=USA).range(address='B2:WR360')), 'USA')
 
@@ -61,10 +63,7 @@ def index_tracking_port(
 
     print('Finding best stocks')
 
-    if market[1] == 'UK':
-        orig = market[0][:day, :-2]
-    else:
-        orig = market[0][:day, :-1]
+    orig = market[0][:day, :-1]
     recon = autoencoder.forward(orig)
     diff = (recon - orig) / orig
     scores = torch.mean(diff ** 2, dim=0)
@@ -78,11 +77,15 @@ def index_tracking_port(
     with open('/Users/joshlevin/PycharmProjects/Santander_P2/runs/' + run_name + '/stock_selection/selected_stocks.py', 'wb') as f:
         pickle.dump(winners, f)
 
+    market_a = market[0][1:, :]
+    market_b = market[0][:-1, :]
+    returns = ((market_a - market_b) / market_b, market[1])
+
     print()
     print("Beginning weight optimization")
     portfolio = genetic_algorithm(
         run_name=run_name,
-        market=market,
+        market=returns,
         day=day,
         portfolio_frac=portfolio_frac,
         init_pop_size=init_pop_size,
@@ -93,20 +96,22 @@ def index_tracking_port(
         gamma=gamma_weights
     )
 
+    #print('winning portfolio =', portfolio)
+
     mean_errors = []
-    for end in range(day + 1, 360):
-        error = tracking_error(portfolios=portfolio, market=market[0], day=end, start_day=day)
+    for end in range(day + 1, 359):
+        error = tracking_error(portfolios=portfolio, market=returns[0], day=end, start_day=day)
         mean_errors.append(error)
-    print('mean_errors =', mean_errors)
-    print('length of mean_errors =', len(mean_errors))
+    #print('mean_errors =', mean_errors)
+    #print('length of mean_errors =', len(mean_errors))
     plot_mean_tracking_error(save_dir=main_dir, errors=mean_errors)
 
     errors = []
-    for test_day in range(day, 359):
-        error = tracking_error(portfolios=portfolio, market=market[0], day=test_day + 1, start_day=test_day, daily=True)
+    for test_day in range(day, 358):
+        error = tracking_error(portfolios=portfolio, market=returns[0], day=test_day + 1, start_day=test_day, daily=True)
         errors.append(float(error))
-    print('errors =', errors)
-    print('length of errors =', len(errors))
+    #print('errors =', errors)
+    #print('length of errors =', len(errors))
     plot_tracking_error(save_dir=main_dir, errors=errors)
 
     print()
@@ -133,7 +138,6 @@ if __name__ == '__main__':
             num_generations=100,
             quantum=False
         )
-    """
 
     for day in range(2, 113):
         index_tracking_port(
@@ -153,20 +157,30 @@ if __name__ == '__main__':
             quantum=False
         )
     """
-    index_tracking_port(
-        run_name='UK_test5',
+    db = xl.Database()
+    db.add_ws(ws="Sheet1")
+
+    port = index_tracking_port(
+        run_name='lo_test1',
         market=UK_stocks,
         day=100,
-        num_epochs=100000,
+        num_epochs=300000,
         rate=0.2,
-        min_rate=0.00001,
-        gamma_stocks=0.9999,
+        min_rate=0.000001,
+        gamma_stocks=0.9999458,
         gamma_weights=0.993,
-        layer_dims=[89, 65, 40, 20, 40, 65, 89],
+        #layer_dims=[614, 460, 350, 265, 200, 265, 350, 460, 614],
+        layer_dims=[89, 70, 53, 40, 30, 40, 53, 70, 89],
         portfolio_frac=0.2,
         init_pop_size=10000,
         cull_frac=0.01,
-        num_generations=300,
+        num_generations=200,
         quantum=False
     )
-"""
+    #port = list(port)
+    #port = [float(weight) for weight in port]
+    #for stock, weight in enumerate(port, start=1):
+    #    db.ws(ws="Sheet1").update_index(row=1, col=stock, val=weight)
+
+    #xl.writexl(db=db, fn="output.xlsx")
+
