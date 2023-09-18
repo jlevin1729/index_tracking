@@ -157,30 +157,58 @@ if __name__ == '__main__':
             quantum=False
         )
     """
+    run_name = 'combined_test'
+
     db = xl.Database()
-    db.add_ws(ws="Sheet1")
+    db.add_ws(ws="MSCI_UK_val")
 
-    port = index_tracking_port(
-        run_name='lo_test1',
-        market=UK_stocks,
-        day=100,
-        num_epochs=300000,
-        rate=0.2,
-        min_rate=0.000001,
-        gamma_stocks=0.9999458,
-        gamma_weights=0.993,
-        #layer_dims=[614, 460, 350, 265, 200, 265, 350, 460, 614],
-        layer_dims=[89, 70, 53, 40, 30, 40, 53, 70, 89],
-        portfolio_frac=0.2,
-        init_pop_size=10000,
-        cull_frac=0.01,
-        num_generations=200,
-        quantum=False
-    )
-    #port = list(port)
-    #port = [float(weight) for weight in port]
-    #for stock, weight in enumerate(port, start=1):
-    #    db.ws(ws="Sheet1").update_index(row=1, col=stock, val=weight)
+    for day in range(100, 102):
+        port = index_tracking_port(
+            run_name=run_name + '/UK_day' + str(day),
+            market=UK_stocks,
+            day=day,
+            num_epochs=30000,
+            rate=0.2,
+            min_rate=0.000001,
+            gamma_stocks=0.9999458,
+            gamma_weights=0.993,
+            #layer_dims=[614, 460, 350, 265, 200, 265, 350, 460, 614],
+            layer_dims=[89, 70, 53, 40, 30, 40, 53, 70, 89],
+            portfolio_frac=0.2,
+            init_pop_size=10000,
+            cull_frac=0.01,
+            num_generations=30,
+            quantum=False
+        )
+        port = list(port)
+        port = [float(weight) for weight in port]
+        for stock, weight in enumerate(port, start=1):
+            db.ws(ws="MSCI_UK_val").update_index(row=day + 2, col=stock + 1, val=weight)
 
-    #xl.writexl(db=db, fn="output.xlsx")
+    db.add_ws(ws="MSCI_USA_val")
+
+    for day in range(100, 102):
+        port = index_tracking_port(
+            run_name=run_name + '/USA_day' + str(day),
+            market=USA_stocks,
+            day=day,
+            num_epochs=30000,
+            rate=0.2,
+            min_rate=0.000001,
+            gamma_stocks=0.9999458,
+            gamma_weights=0.993,
+            layer_dims=[614, 460, 350, 265, 200, 265, 350, 460, 614],
+            #layer_dims=[89, 70, 53, 40, 30, 40, 53, 70, 89],
+            portfolio_frac=0.2,
+            init_pop_size=10000,
+            cull_frac=0.01,
+            num_generations=30,
+            quantum=False
+        )
+        port = list(port)
+        port = [float(weight) for weight in port]
+        for stock, weight in enumerate(port, start=1):
+            db.ws(ws="MSCI_USA_val").update_index(row=day + 2, col=stock + 1, val=weight)
+
+    xl.writexl(db=db, fn='runs/' + run_name + '/output.xlsx')
 
